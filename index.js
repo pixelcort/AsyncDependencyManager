@@ -1,71 +1,85 @@
 // AsyncDependencyManager
 // (c) 2010-02-09 Cortland Klein <me@pixelcort.com>
 
-/*globals AsyncDependencyManager x*/
-
+/*globals exports*/
 
 var sys = require('sys'),
-   repl = require("repl");
+   repl = require("repl"),
+   AsyncDependencyManager;
+
+var console = {log:function(x){sys.puts(x);}};
 
 AsyncDependencyManager = function(tasks) {
-  this.pendingTasks = tasks;
-  this.progressTasks = [];
-  this.callAvailableTasks();
+  var taskName,
+      task,
+      prerequisiteTaskNames,
+      prerequisiteTaskName,
+      l,
+      i,
+      prerequisiteTask,
+      startTasks;
+  
+  if (!this instanceof AsyncDependencyManager) return new AsyncDependencyManager(tasks);
+  
+  this.tasks = tasks;
+  this.startTasks = {};
+  
+  for (taskName in tasks) { if (!tasks.hasOwnProperty(taskName)) continue;
+    task = tasks[taskName];
+    if (!task.name) { // Has no prerequisites
+      this.startTasks[taskName] = task;
+      continue;
+    }
+    prerequisiteTaskNames = task.name.split('_');
+    for (i=0,l=prerequisiteTaskNames.length;i<l;i++) {
+      prerequisiteTaskName = prerequisiteTaskNames[i];
+      // console.log('prerequisiteTaskName: ' + prerequisiteTaskName);
+      prerequisiteTask = tasks[prerequisiteTaskName];
+      
+      // Ensure task and prerequisiteTask have parents and children arrays
+      if (!prerequisiteTask.hasOwnProperty('children')) prerequisiteTask.children = {};
+      if (!task.hasOwnProperty('parents')) task.parents = {};
+      
+      // Setup pointers between two tasks
+      task.parents[prerequisiteTaskName] = prerequisiteTask;
+      prerequisiteTask.children[taskName] = task;
+      
+      sys.puts('task ' + taskName + ' depends on ' + prerequisiteTaskName);
+    }
+  }
+  
+  for (taskName in this.startTasks) { if (!this.startTasks.hasOwnProperty(taskName)) continue;
+    task = this.startTasks[taskName];
+    this.callTask(task);
+  }
 };
 
-AsyncDependencyManager.prototype.callAvailableTasks = function(){
-  var pendingTasksNames = [],
-      taskName, task, prerequisiteNames, i, l, otherTask,
-      taskMustWait, pendingTaskName,
-      prerequisiteName, j, l2;
-  for (taskName in this.pendingTasks) {
-    pendingTasksNames.push(taskName);
-  }
-  l=pendingTasksNames.length;
-  
-  if (!l) return; // We're done!
-  
-  for (taskName in this.pendingTasks) {
-    task = this.pendingTasks[taskName];
-    prerequisiteNames = task.name.split('_');
-    l2 = prerequisiteNames.length;
-    taskMustWait = 0;
-    for (i=0; i<l; i++) {
-      pendingTaskName = pendingTasksNames[i];
-      // sys.puts('pendingTaskName: ' + pendingTaskName);
-      for (j=0; j<l2; j++) {
-        prerequisiteName = prerequisiteNames[j];
-        // sys.puts('prerequisiteName: ' + prerequisiteName);
-        if (pendingTaskName == prerequisiteName) {
-          // sys.puts('taskMustWait');
-          taskMustWait = 1;
+AsyncDependencyManager.prototype.callTask = function(task) {
+  var      manager = this,
+      taskCallback = function() {
+    var childTaskName,
+        parentTaskName,
+        childTask,
+        parentTask,
+        readyToCall;
+    task.isComplete = true;
+    if (!task.children) return; // Task has no children.
+    for (childTaskName in task.children) { if (!task.children.hasOwnProperty(childTaskName)) continue;
+      childTask = task.children[childTaskName];
+      readyToCall = true;
+      for (parentTaskName in childTask.parents) { if (!childTask.parents.hasOwnProperty(parentTaskName)) continue;
+        parentTask = childTask.parents[parentTaskName];
+        if (!parentTask.isComplete) {
+          readyToCall = false;
           break;
         }
       }
-      if (taskMustWait) break;
+      if (readyToCall) manager.callTask(childTask);
     }
-    if (taskMustWait) {
-      continue;
-    }
-    // Task has no dependencies!
-    
-    // Check to see if the task has allready been called
-    if (taskName in this.progressTasks) continue;
-    this.progressTasks[taskName] = task;
-    
-    // sys.puts('calling task ' + taskName + '...');
-    this.callTask(taskName);
-    
-  }
+  };
+  task.call(taskCallback);
 };
 
-AsyncDependencyManager.prototype.callTask = function(taskName) {
-  var manager = this;
-  var actualTaskName = taskName;
-  var taskCallback = function(){
-    // sys.puts('delete pendingTask ' + actualTaskName);
-    delete manager.pendingTasks[taskName];
-    manager.callAvailableTasks();
-  };
-  this.pendingTasks[taskName].call(taskCallback);
-};
+///////////////////////////////
+
+exports.AsyncDependencyManager = AsyncDependencyManager;
