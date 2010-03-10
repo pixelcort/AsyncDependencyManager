@@ -7,6 +7,11 @@ Usage: Create a new AsyncDependencyObject with a hash of tasks,
        In your functions, assign this as the callback function to your async 
        operation. this is assigned to an internal task management callback 
        that will call more tasks.
+       
+       When your dependent tasks get called, the first argument will be an 
+       object where the keys are the prerequisite task names and the values 
+       are the arguments that were provided to the internal task management 
+       callbacks.
 
 Usage Example:
 new AsyncDependencyManager(

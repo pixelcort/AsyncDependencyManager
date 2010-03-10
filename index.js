@@ -54,30 +54,35 @@ AsyncDependencyManager = function(tasks) {
   }
 };
 
-AsyncDependencyManager.prototype.callTask = function(task) {
+AsyncDependencyManager.prototype.callTask = function(task, parentCallbacksArguments) {
   var      manager = this,
       taskCallback = function() {
     var childTaskName,
         parentTaskName,
         childTask,
         parentTask,
-        readyToCall;
+        readyToCall,
+        parentCallbacksArguments;
     task.isComplete = true;
+    task.callbackArguments = arguments;
     if (!task.children) return; // Task has no children.
     for (childTaskName in task.children) { if (!task.children.hasOwnProperty(childTaskName)) continue;
       childTask = task.children[childTaskName];
       readyToCall = true;
+      parentCallbacksArguments = {};
       for (parentTaskName in childTask.parents) { if (!childTask.parents.hasOwnProperty(parentTaskName)) continue;
         parentTask = childTask.parents[parentTaskName];
         if (!parentTask.isComplete) {
           readyToCall = false;
           break;
+        } else {
+          parentCallbacksArguments[parentTaskName] = parentTask.callbackArguments;
         }
       }
-      if (readyToCall) manager.callTask(childTask);
+      if (readyToCall) manager.callTask(childTask, parentCallbacksArguments);
     }
   };
-  task.call(taskCallback);
+  task.call(taskCallback, parentCallbacksArguments);
 };
 
 ///////////////////////////////
